@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 
@@ -11,15 +12,14 @@ import (
 )
 
 type note struct {
+	title   string
 	content string
 	id      string
 }
 
-func makeNote(content string) *note {
-	return &note{
-		content: content,
-		id:      uuid.New().String(),
-	}
+func makeNote(title string, content string) *note {
+	id := uuid.New().String()
+	return &note{title, content, id}
 }
 
 func (n *note) equals(nn *note) bool {
@@ -49,13 +49,13 @@ func (c *conn) addNote(n *note) error {
 		return err
 	}
 
-	stmt, err := tx.Prepare("insert into notes(note_id, note) values(?, ?)")
+	stmt, err := tx.Prepare("insert into notes(note_id, title, content) values(?, ?, ?)")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(n.id, n.content)
+	_, err = stmt.Exec(n.id, n.title, n.content)
 	if err != nil {
 		return err
 	}
@@ -65,19 +65,19 @@ func (c *conn) addNote(n *note) error {
 }
 
 func (c *conn) getNote(id string) (*note, error) {
-	stmt, err := c.db.Prepare("select note from notes where notes.note_id = ?")
+	stmt, err := c.db.Prepare("select title, content from notes where notes.note_id = ?")
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
 
-	var content string
-	err = stmt.QueryRow(id).Scan(&content)
+	var title, content string
+	err = stmt.QueryRow(id).Scan(&title, &content)
 	if err != nil {
 		return nil, err
 	}
 
-	return &note{content, id}, nil
+	return &note{title, content, id}, nil
 }
 
 func (c *conn) getNotes() (notes []*note, err error) {
@@ -87,10 +87,10 @@ func (c *conn) getNotes() (notes []*note, err error) {
 	}
 	defer rows.Close()
 
-	var content, id string
+	var title, content, id string
 	for rows.Next() {
-		err = rows.Scan(&content, &id)
-		notes = append(notes, &note{content, id})
+		err = rows.Scan(&title, &content, &id)
+		notes = append(notes, &note{title, content, id})
 	}
 	err = rows.Err()
 	if err != nil {
@@ -100,6 +100,8 @@ func (c *conn) getNotes() (notes []*note, err error) {
 	return notes, nil
 }
 
+var notesTmpl = template.Must(template.ParseFiles("templates/notes.html"))
+
 func main() {
 	c, err := makeConn()
 	if err != nil {
@@ -107,7 +109,7 @@ func main() {
 	}
 	defer c.close()
 
-	n := makeNote("hello world")
+	n := makeNote("My masterpiece", "hello world")
 	err = c.addNote(n)
 	if err != nil {
 		log.Fatalf("failed to add note: %v", err)
@@ -131,8 +133,12 @@ func main() {
 			return
 		}
 
-		fmt.Fprintf(w, "notes: %v", notes)
+		w.Header().Set("Content-Type", "text/html")
+		notesTmpl.Execute(w, notes)
 	})
+
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
 
 	http.ListenAndServe(":8080", nil)
 }

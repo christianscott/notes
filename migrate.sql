@@ -1,4 +1,7 @@
-create table if not exists notes (
+drop table if exists notes;
+
+create table notes (
   note_id blob primary key,
-  note text not null
+  title   text not null,
+  content text not null
 );
