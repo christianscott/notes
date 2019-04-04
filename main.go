@@ -11,23 +11,46 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type author struct {
+	ID   string
+	Name string
+}
+
+func makeAuthor(name string) *author {
+	id := uuid.New().String()
+	return &author{
+		ID:   id,
+		Name: name,
+	}
+}
+
+func (a *author) equals(aa *author) bool {
+	return aa != nil && a.ID == aa.ID && a.Name == aa.Name
+}
+
 type note struct {
 	ID      string
 	Title   string
 	Content string
+	Author  *author
 }
 
-func makeNote(title string, content string) *note {
+func makeNote(title string, content string, auth *author) *note {
 	id := uuid.New().String()
 	return &note{
 		ID:      id,
 		Title:   title,
 		Content: content,
+		Author:  auth,
 	}
 }
 
 func (n *note) equals(nn *note) bool {
-	return nn != nil && n.ID == nn.ID && n.Title == nn.Title && n.Content == nn.Content
+	return nn != nil &&
+		n.ID == nn.ID &&
+		n.Title == nn.Title &&
+		n.Content == nn.Content &&
+		n.Author.equals(nn.Author)
 }
 
 type conn struct {
@@ -53,13 +76,34 @@ func (c *conn) addNote(n *note) error {
 		return err
 	}
 
-	stmt, err := tx.Prepare("insert into notes(note_id, title, content) values(?, ?, ?)")
+	stmt, err := tx.Prepare("insert into notes(note_id, title, content, author_id) values(?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(n.ID, n.Title, n.Content)
+	_, err = stmt.Exec(n.ID, n.Title, n.Content, n.Author.ID)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit()
+	return nil
+}
+
+func (c *conn) addAuthor(a *author) error {
+	tx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare("insert into authors(author_id, author_name) values(?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(a.ID, a.Name)
 	if err != nil {
 		return err
 	}
@@ -69,27 +113,39 @@ func (c *conn) addNote(n *note) error {
 }
 
 func (c *conn) getNote(id string) (*note, error) {
-	stmt, err := c.db.Prepare("select title, content from notes where notes.note_id = ?")
+	stmt, err := c.db.Prepare(`
+		select n.title, n.content, n.author_id, a.author_name
+		from notes n join authors a on a.author_id = n.author_id
+		where n.note_id = ?
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
 
-	var title, content string
-	err = stmt.QueryRow(id).Scan(&title, &content)
+	var title, content, authorID, authorName string
+	err = stmt.QueryRow(id).Scan(&title, &content, &authorID, &authorName)
 	if err != nil {
 		return nil, err
 	}
 
+	auth := &author{
+		ID:   authorID,
+		Name: authorName,
+	}
 	return &note{
 		ID:      id,
 		Title:   title,
 		Content: content,
+		Author:  auth,
 	}, nil
 }
 
 func (c *conn) getNotes() (notes []*note, err error) {
-	rows, err := c.db.Query("select note_id, title, content from notes")
+	rows, err := c.db.Query(`
+		select n.note_id, n.title, n.content, a.author_id, a.author_name
+		from notes n join authors a on n.author_id = a.author_id
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +178,13 @@ func main() {
 	}
 	defer c.close()
 
-	n := makeNote("My masterpiece", "hello world")
+	a := makeAuthor("Christian Scott")
+	err = c.addAuthor(a)
+	if err != nil {
+		log.Fatalf("failed to add author: %v", err)
+	}
+
+	n := makeNote("My masterpiece", "hello world", a)
 	err = c.addNote(n)
 	if err != nil {
 		log.Fatalf("failed to add note: %v", err)
