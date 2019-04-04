@@ -151,13 +151,18 @@ func (c *conn) getNotes() (notes []*note, err error) {
 	}
 	defer rows.Close()
 
-	var title, content, id string
+	var noteID, title, content, authorID, authorName string
 	for rows.Next() {
-		err = rows.Scan(&id, &title, &content)
+		err = rows.Scan(&noteID, &title, &content, &authorID, &authorName)
+		a := &author{
+			ID:   authorID,
+			Name: authorName,
+		}
 		notes = append(notes, &note{
-			ID:      id,
+			ID:      noteID,
 			Title:   title,
 			Content: content,
+			Author:  a,
 		})
 	}
 	err = rows.Err()
@@ -168,8 +173,10 @@ func (c *conn) getNotes() (notes []*note, err error) {
 	return notes, nil
 }
 
-var notesTmpl = template.Must(template.ParseFiles("templates/notes.html"))
-var noteTmpl = template.Must(template.ParseFiles("templates/note.html"))
+var (
+	notesTmpl = template.Must(template.ParseFiles("templates/notes.html"))
+	noteTmpl  = template.Must(template.ParseFiles("templates/note.html"))
+)
 
 func main() {
 	c, err := makeConn()

@@ -75,11 +75,9 @@ pre {
 }
 </style>
 <article>
-  <h2>All Notes</h2>
-
-  <ul>
-    {{ range . }}
-      <li><a href="/notes?note_id={{ .ID }}">{{ .Title }}</a> by {{ .Author.Name }}</li>
-    {{ end }}
-  </ul>
+  <h2>New note</h2>
+  
+  <form>
+    <textarea>
+  </form>
 </article>
