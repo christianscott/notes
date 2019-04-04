@@ -75,11 +75,15 @@ pre {
 }
 </style>
 <article>
-  <h2>Notes by User McUserFace</h2>
+  <nav>
+    By <a href="#">Christian Scott</a>
+  </nav>
 
-  <ul>
-    {{ range . }}
-    <li><a href="/notes?note_id={{ .ID }}">{{ .Title }}</a></li>
-    {{ end }}
-  </ul>
+  <section>
+    <h2>
+      {{ .Title }}
+    </h2>
+
+    <p>{{ .Content }}</p>
+  </section>
 </article>

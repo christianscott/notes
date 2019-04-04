@@ -12,18 +12,22 @@ import (
 )
 
 type note struct {
-	title   string
-	content string
-	id      string
+	ID      string
+	Title   string
+	Content string
 }
 
 func makeNote(title string, content string) *note {
 	id := uuid.New().String()
-	return &note{title, content, id}
+	return &note{
+		ID:      id,
+		Title:   title,
+		Content: content,
+	}
 }
 
 func (n *note) equals(nn *note) bool {
-	return nn != nil && n.id == nn.id && n.content == nn.content
+	return nn != nil && n.ID == nn.ID && n.Title == nn.Title && n.Content == nn.Content
 }
 
 type conn struct {
@@ -55,7 +59,7 @@ func (c *conn) addNote(n *note) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(n.id, n.title, n.content)
+	_, err = stmt.Exec(n.ID, n.Title, n.Content)
 	if err != nil {
 		return err
 	}
@@ -77,11 +81,15 @@ func (c *conn) getNote(id string) (*note, error) {
 		return nil, err
 	}
 
-	return &note{title, content, id}, nil
+	return &note{
+		ID:      id,
+		Title:   title,
+		Content: content,
+	}, nil
 }
 
 func (c *conn) getNotes() (notes []*note, err error) {
-	rows, err := c.db.Query("select * from notes")
+	rows, err := c.db.Query("select note_id, title, content from notes")
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +97,12 @@ func (c *conn) getNotes() (notes []*note, err error) {
 
 	var title, content, id string
 	for rows.Next() {
-		err = rows.Scan(&title, &content, &id)
-		notes = append(notes, &note{title, content, id})
+		err = rows.Scan(&id, &title, &content)
+		notes = append(notes, &note{
+			ID:      id,
+			Title:   title,
+			Content: content,
+		})
 	}
 	err = rows.Err()
 	if err != nil {
@@ -101,6 +113,7 @@ func (c *conn) getNotes() (notes []*note, err error) {
 }
 
 var notesTmpl = template.Must(template.ParseFiles("templates/notes.html"))
+var noteTmpl = template.Must(template.ParseFiles("templates/note.html"))
 
 func main() {
 	c, err := makeConn()
@@ -115,7 +128,7 @@ func main() {
 		log.Fatalf("failed to add note: %v", err)
 	}
 
-	retrievedNote, err := c.getNote(n.id)
+	retrievedNote, err := c.getNote(n.ID)
 	if err != nil {
 		log.Fatalf("failed to retrieve note: %v", err)
 	}
@@ -127,14 +140,26 @@ func main() {
 	}
 
 	http.HandleFunc("/notes", func(w http.ResponseWriter, r *http.Request) {
-		notes, err := c.getNotes()
-		if err != nil {
-			fmt.Fprintf(w, "error: %v", err)
-			return
-		}
-
 		w.Header().Set("Content-Type", "text/html")
-		notesTmpl.Execute(w, notes)
+
+		id := r.URL.Query().Get("note_id")
+		if id == "" {
+			notes, err := c.getNotes()
+			if err != nil {
+				fmt.Fprintf(w, "error: %v", err)
+				return
+			}
+
+			notesTmpl.Execute(w, notes)
+		} else {
+			note, err := c.getNote(id)
+			if err != nil {
+				fmt.Fprintf(w, "error: %v", err)
+				return
+			}
+
+			noteTmpl.Execute(w, note)
+		}
 	})
 
 	fs := http.FileServer(http.Dir("static"))
