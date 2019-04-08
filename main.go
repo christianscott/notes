@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,11 +67,13 @@ const (
 var (
 	listenAddr string
 
-	notesTmpl = template.Must(template.ParseFiles("templates/notes.html"))
-	noteTmpl  = template.Must(template.ParseFiles("templates/note.html"))
+	tmpl = make(map[string]*template.Template)
 )
 
 func main() {
+	tmpl["note"] = template.Must(template.ParseFiles("templates/note.html", "templates/_base.html"))
+	tmpl["notes"] = template.Must(template.ParseFiles("templates/notes.html", "templates/_base.html"))
+
 	flag.StringVar(&listenAddr, "listen-addr", ":8080", "server listen address")
 	flag.Parse()
 
@@ -82,7 +87,9 @@ func main() {
 	defer c.close()
 
 	router := http.NewServeMux()
-	router.Handle("/", notes(c))
+	router.Handle("/notes", notes(c))
+	router.Handle("/healthz", health())
+	router.Handle("/static/", static(logger))
 
 	nextRequestID := func() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
@@ -114,7 +121,7 @@ func notes(c *conn) http.Handler {
 				return
 			}
 
-			notesTmpl.Execute(w, notes)
+			tmpl["notes"].ExecuteTemplate(w, "base", notes)
 		} else {
 			note, err := c.getNote(id)
 			if err != nil {
@@ -122,7 +129,42 @@ func notes(c *conn) http.Handler {
 				return
 			}
 
-			noteTmpl.Execute(w, note)
+			tmpl["note"].ExecuteTemplate(w, "base", note)
+		}
+	})
+}
+
+func health() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func static(logger *log.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(".", r.URL.Path)
+
+		var contentType string
+		if strings.HasSuffix(path, ".css") {
+			contentType = "text/css"
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		f, err := os.Open(path)
+
+		if err == nil {
+			logger.Println(path)
+			defer f.Close()
+			w.Header().Add("Content-Type", contentType)
+
+			br := bufio.NewReader(f)
+			br.WriteTo(w)
+			return
+		} else {
+			logger.Printf("%v\n", err)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	})
 }
