@@ -73,6 +73,7 @@ var (
 func main() {
 	tmpl["note"] = template.Must(template.ParseFiles("templates/note.html", "templates/_base.html"))
 	tmpl["notes"] = template.Must(template.ParseFiles("templates/notes.html", "templates/_base.html"))
+	tmpl["newNote"] = template.Must(template.ParseFiles("templates/new_note.html", "templates/_base.html"))
 
 	flag.StringVar(&listenAddr, "listen-addr", ":8080", "server listen address")
 	flag.Parse()
@@ -88,6 +89,7 @@ func main() {
 
 	router := http.NewServeMux()
 	router.Handle("/notes", notes(c))
+	router.Handle("/notes/new", newNote(c))
 	router.Handle("/healthz", health())
 	router.Handle("/static/", static(logger))
 
@@ -131,6 +133,13 @@ func notes(c *conn) http.Handler {
 
 			tmpl["note"].ExecuteTemplate(w, "base", note)
 		}
+	})
+}
+
+func newNote(c *conn) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "text/html")
+		tmpl["newNote"].ExecuteTemplate(w, "base", nil)
 	})
 }
 

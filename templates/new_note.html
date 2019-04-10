@@ -1,83 +1,25 @@
-<style>
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+{{ define "head" }}
+<title>New Note</title>
+{{ end}}
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  font-size: 18px;
-  color: #222;
-  background-color: rgb(247, 246, 243);
-}
-
-article {
-  padding: 80px 36px;
-  max-width: 708px;
-  margin: 0 auto;
-}
-
-a,
-a:visited {
-  color: blue;
-}
-
-h1 > a,
-h2 > a,
-h3 > a,
-h4 > a,
-h5 > a,
-h6 > a {
-  position: relative;
-  color: inherit;
-  text-decoration: none;
-}
-
-h1 > a:visited,
-h2 > a:visited,
-h3 > a:visited,
-h4 > a:visited,
-h5 > a:visited,
-h6 > a:visited {
-  color: inherit;
-}
-
-h1 > a:hover,
-h2 > a:hover,
-h3 > a:hover,
-h4 > a:hover,
-h5 > a:hover,
-h6 > a:hover {
-  text-decoration: underline;
-}
-
-h1 > a:hover::before,
-h2 > a:hover::before,
-h3 > a:hover::before,
-h4 > a:hover::before,
-h5 > a:hover::before,
-h6 > a:hover::before {
-  display: block;
-  content: "🔗";
-
-  position: absolute;
-  left: -1.8rem;
-  top: 0;
-  bottom: 0;
-}
-
-pre {
-  padding: 1.4rem;
-  scroll-x: auto;
-  background-color: #DDD;
-  font-size: 0.9rem;
-}
-</style>
-<article>
-  <h2>New note</h2>
-  
-  <form>
-    <textarea>
+{{ define "body" }}
+<article class="container">
+  <form action="/notes/new">
+    <div class="pv1 f f-d--row f-j--space-between f-a--end">
+      <h2 class="heading m0 lh1">New Note</h2>
+      <input class="button button--primary float--right" type="submit" value="Submit">
+    </div>
+    <input class="input input--text" type="text" placeholder="Note title" name="title">
+    <textarea id="new-note-content" class="input input--text" placeholder="Start writing something" rows="10" name="content"></textarea>
   </form>
 </article>
+
+<script>
+  const $noteContentInput = document.querySelector("#new-note-content");
+  const minNumLines = $noteContentInput.rows;
+  $noteContentInput.addEventListener('input', function() {
+    const lines = 1 + (this.value.match(/\n/g) || []).length;
+    this.rows = Math.max(minNumLines, lines);
+  });
+</script>
+{{ end }}
